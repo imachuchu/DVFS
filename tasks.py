@@ -46,3 +46,16 @@ def delTestData():
     for instance in testFiles:
         os.remove(instance['path'])
     print("Deleting test data")
+
+@task
+def uploadViews():
+    """Syncs all stored views into the couchdb database"""
+    import couchdbkit as ck #For an ORM'ish interface to couchDB
+    from couchdbkit.loaders import FileSystemDocsLoader
+    from configobj import ConfigObj
+    server = ck.Server()
+    dbName = ConfigObj('config.ini')['dbName']
+    database = server.get_or_create_db(dbName)
+    loader = FileSystemDocsLoader('dvfs/_design')
+    loader.sync(database, verbose=True)
+    print("Uploading views")
