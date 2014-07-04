@@ -4,7 +4,6 @@ testFiles = [
     {'path': "test1.txt", 'content': "Test 1's content"},
     {'path': "test2.txt", 'content': "Test 2's content"}
 ]
-dbName = 'dvfs'
 
 @task
 def addTestData():
@@ -13,8 +12,11 @@ def addTestData():
     import os
     from datetime import datetime
     from hashlib import sha1
+    from configobj import ConfigOb
     from dvfs.couchdb.dbFile import dbFile
+
     server = ck.Server()
+    dbName = ConfigObj('config.ini')['dbName']
     database = server.get_or_create_db(dbName)
     os.chdir("dvfs/base")
     for instance in testFiles:
