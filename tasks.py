@@ -12,7 +12,8 @@ def addTestData():
     import os
     from datetime import datetime
     from hashlib import sha1
-    from configobj import ConfigOb
+    from configobj import ConfigObj
+
     from dvfs.couchdb.dbFile import dbFile
 
     server = ck.Server()
@@ -41,21 +42,38 @@ def addTestData():
 @task
 def delTestData():
     """Deletes test data from the database"""
+    """database.view('dvfs/path-all', params'key="test1.txt"').first()"""
+    import couchdbkit as ck #For an ORM'ish interface to couchDB
     import os
+    from datetime import datetime
+    from hashlib import sha1
+    from configobj import ConfigObj
+
+    from dvfs.couchdb.dbFile import dbFile
+
+    server = ck.Server()
+    dbName = ConfigObj('config.ini')['dbName']
     os.chdir("dvfs/base")
+    database = server.get_db(dbName)
+
     for instance in testFiles:
         os.remove(instance['path'])
+
+        dbView = dbFile()
+        dbView.set_db(database)
+        rmFile = dbView.view('dvfs/path-all', key=instance['path']).one() #There should only ever be one anyway
+        rmFile.delete()
+
     print("Deleting test data")
 
 @task
 def uploadViews():
     """Syncs all stored views into the couchdb database"""
     import couchdbkit as ck #For an ORM'ish interface to couchDB
-    from couchdbkit.loaders import FileSystemDocsLoader
+    from couchdbkit.designer import push
     from configobj import ConfigObj
     server = ck.Server()
     dbName = ConfigObj('config.ini')['dbName']
     database = server.get_or_create_db(dbName)
-    loader = FileSystemDocsLoader('dvfs/_design')
-    loader.sync(database, verbose=True)
+    push('dvfs/_design/dvfs', database)
     print("Uploading views")
