@@ -3,6 +3,8 @@ from fuse import FUSE, Operations, FuseOSError, LoggingMixIn
 import argparse #For easy parsing of the command line arguments
 import logging #For debug/error logging
 import couchdbkit as ck
+import os
+from couchdb.dbObject import dbObject
 from couchdb.dbFile import dbFile
 from couchdb.dbFolder import dbFolder
 
