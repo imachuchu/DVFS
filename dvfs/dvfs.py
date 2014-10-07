@@ -1,15 +1,39 @@
 #!/usr/bin/env python
-from fuse import FUSE, Operations, FuseOSError, LoggingMixIn
+from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
+import fuse
+from stat import S_IFDIR, S_IFLNK, S_IFREG
 import argparse #For easy parsing of the command line arguments
 import logging #For debug/error logging
 import couchdbkit as ck
 import os
+from datetime import datetime
 from couchdb.dbObject import dbObject
 from couchdb.dbFile import dbFile
 from couchdb.dbFolder import dbFolder
 
-class dvfs(LoggingMixIn, Operations):
 
+""" If we were using the old python fuse bindings
+class rootInfo(fuse.Stat):
+    def __init__(self):
+        fuse.Stat.__init__(self)
+        self.st_mode = stat.S_IFDIR | 0755
+        self.st_nlink = 2
+
+class folderInfo(fuse.Stat):
+    def __init__(self):
+        fuse.Stat.__init__(self)
+        self.st_mode = stat.S_IFDIR | 0755
+        self.st_nlink = 2
+
+class fileInfo(fuse.Stat):
+    def __init__(self):
+        fuse.Stat.__init__(self)
+        self.st_mode = stat.S_IFREG | 0644
+        self.st_nlink = 1
+        self.st_size = 4096
+"""
+
+class dvfs(LoggingMixIn, Operations):
     def __init__(self, base, debug):
         self.debug = debug
         if self.debug == True:
@@ -24,6 +48,8 @@ class dvfs(LoggingMixIn, Operations):
 
     def connectDatabase(self,dbName):
         """Sets up the database to be interacted"""
+        if self.debug == True:
+            logging.debug("connecting to database")
         server = ck.Server()
         self.database = server.get_or_create_db(dbName)
         self.dataOb = dbObject.set_db(server.get_or_create_db(dbName))
@@ -32,20 +58,53 @@ class dvfs(LoggingMixIn, Operations):
         """Returns the attributes of the specific file"""
         if self.debug == True:
             logging.debug("Inside the getattr function, path= %s" % path)
+
+        # All of this is debug stuff
+        from time import time
+        import errno
+        now = time()
+        st = fuse.c_stat()
+        logging.debug(st)
+        return st
+        """
         if path == '/':
-            now = time()
-            return dict(st_mode=(stat.S_IFDIR | 0755), st_ctime=now, st_mtime=now, st_atime=now, st_nlink=2)
+            return dict(st_mode=(S_IFDIR | 0755), st_ctime=now, st_mtime=now, st_atime=now, st_nlink=2)
+        return dict(st_mode=(S_IFDIR | 0444), st_ctime=now, st_mtime=now, st_atime=now, st_size=4096)
+        """
+        """
+        st.st_mode = stat.S_IFDIR | 0755
+        st.st_nlink = 2
+        st.st_atime = int(time.time())
+        st.st_mtime = st.st_atime
+        st.st_ctime = st.st_atime
+        if path != '/':
+            st.st_mode = stat.S_IFDIR | 0644
+            st.st_nlink = 1
+            st.st_size = 4096
+        return st
+        """
+        # End debug stuff
+        """
+        if path == '/':
+            logging.debug("found the root")
+            now = datetime.now()
+            return dict(st_mode=(S_IFDIR | 0755), st_ctime=now, st_mtime=now, st_atime=now, st_nlink=2)
+        logging.debug("outside the root")
+        return dict(st_mode=(S_IFDIR | 0755), st_ctime=now, st_mtime=now, st_atime=now)
         dbView = dbFile(self.dataOb)
-        fileInfo = dbView.view('dvfs/filePath', key=path).one() #There should only ever be one anyway
+        fileInfo = dbView.view('dvfs/path-all', key=path).one() #There should only ever be one anyway
         if fileInfo is None:
             raise FuseOSError(ENOENT)
         else:
             return fileInfo.getAttributes()
+        """
 
     def readdir(self, path, fh=None):
         """Returns the attributes of a folder"""
         if self.debug == True:
             logging.debug("Inside the readdir function, path= %s" % path)
+        return fuse.c_stat()
+        return dict(st_mode=(S_IFDIR | 0755), st_ctime=now, st_mtime=now, st_atime=now, st_nlink=2)
         direntry = ['.', '..'] 
         dbView = dbFile(self.dataOb)
         fileList = dbView.view('dvfs/folderPath', key=path)
@@ -74,6 +133,7 @@ class dvfs(LoggingMixIn, Operations):
         return 0
 
 # These features aren't implemented yet, and some may never be
+    '''
     def readlink(self, path):
         """Reads a symbolic link
         May be implemented
@@ -81,13 +141,17 @@ class dvfs(LoggingMixIn, Operations):
         if self.debug == True:
             logging.debug("In readlink, path= %s" % path)
         pass
+    '''
 
+    '''
     def unlink(self, path):
         """Removes a file"""
         if self.debug == True:
             logging.debug("In unlink, path = %s" % path)
         pass
+    '''
 
+    '''
     def rmdir(self, path):
         """Removes a directory
         Will need to be implemented
@@ -95,7 +159,9 @@ class dvfs(LoggingMixIn, Operations):
         if self.debug == True:
             logging.debug("In rmdir, path = %s" % path)
         pass
+    '''
 
+    '''
     def symlink(self, path, path1):
         """Creates a symbolic path
         May be implemented
@@ -103,7 +169,9 @@ class dvfs(LoggingMixIn, Operations):
         if self.debug == True:
             logging.debug("In symlink, path = %s" % path)
         pass
+    '''
 
+    '''
     def link(self, path, path1):
         """Creates a hard link
         May be implemented
@@ -111,7 +179,9 @@ class dvfs(LoggingMixIn, Operations):
         if self.debug == True:
             logging.debug("In link, path = %s" % path)
         pass
+    '''
 
+    '''
     def chmod(self, path, mode):
         """Changes the permissions on a file
         Will need to be implemented, and will be complex
@@ -119,14 +189,18 @@ class dvfs(LoggingMixIn, Operations):
         if self.debug == True:
             logging.debug("In chmod, path = %s" % path)
         return 0
+    '''
 
+    '''
     def chown(self, path, mode):
         """Changes the owner/group of a file
         Will need to be implemented
         """
         if self.debug == True:
             logging.debug("In chown, path = %s" % path)
+    '''
 
+    '''
     def truncate(self, path, length, fh=None):
         """Changes the size of a file
         Should be easy to implement
@@ -134,7 +208,9 @@ class dvfs(LoggingMixIn, Operations):
         if self.debug == True:
             logging.debug("In truncate, path = %s" % path)
         pass
+    '''
 
+    '''
     def mknod(self, path, mode, dev):
         """Creates a new file
         dev can be safely ignored
@@ -143,13 +219,17 @@ class dvfs(LoggingMixIn, Operations):
             logging.debug("In mknod, path = %s" % path)
         # Create the file in the database
         pass
+    '''
 
+    '''
     def mkdir(self, path, mode):
         """Makes a new directory
         """
         if self.debug == True:
             logging.debug("In mkdir, path = %s" % path)
+    '''
 
+    '''
     def utimens(self, path, times=None):
         """Changes the modification/access time of a file
         path = path to file
@@ -158,7 +238,9 @@ class dvfs(LoggingMixIn, Operations):
         """
         if self.debug == True:
             logging.debug("In utimens, path = %s" % path)
+    '''
 
+    '''
     def access(self, path, mode):
         """Checks if a file can be accessed by the user
         Not an issue for us
@@ -167,7 +249,9 @@ class dvfs(LoggingMixIn, Operations):
         if self.debug == True:
             logging.debug("In access, path = %s" % path)
         pass
+    '''
 
+    '''
     def statfs(self, path):
         """Return filesystem information
         Since this isn't a real filesystem we really don't have anything valid to return
@@ -176,7 +260,9 @@ class dvfs(LoggingMixIn, Operations):
         if self.debug == True:
             logging.debug("In statfs, path = %s" % path)
         pass
+    '''
 
+    '''
     def fsinit(self):
         """Called when the filesystem is ready to serve requests.
         Often used for spawning threads and such
@@ -185,6 +271,7 @@ class dvfs(LoggingMixIn, Operations):
             Commit/update them to the newest version available
         """
         pass
+    '''
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Links a folder to the cloud-ish dvfs filesystem")
