@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import logging
+import argparse #For easy parsing of the command line arguments
 
 from collections import defaultdict
 from errno import ENOENT
@@ -10,19 +11,39 @@ from time import time
 
 from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 
+import couchdbkit as ck
+import os
+
+from couchdb.dbObject import dbObject
+from couchdb.dbFile import dbFile
+
 if not hasattr(__builtins__, 'bytes'):
     bytes = str
 
-class Memory(LoggingMixIn, Operations):
-    'Example memory filesystem. Supports only one level of files.'
-
-    def __init__(self):
+class dvfs(LoggingMixIn, Operations):
+    def __init__(self, base, debug):
         self.files = {}
         self.data = defaultdict(bytes)
         self.fd = 0
         now = time()
         self.files['/'] = dict(st_mode=(S_IFDIR | 0755), st_ctime=now,
                                st_mtime=now, st_atime=now, st_nlink=2)
+
+        """dvfs stuff"""
+        self.debug = debug
+        if base[0] == '/':
+            self.base = base
+        else:
+            self.base = os.path.dirname(os.path.realpath(__file__)) + "/" + base
+        self.connectDatabase(dbName='dvfs')
+
+    def connectDatabase(self,dbName):
+        """Sets up the database to be interacted"""
+        if self.debug == True:
+            logging.debug("connecting to database")
+        server = ck.Server()
+        self.database = server.get_or_create_db(dbName)
+        self.dataOb = dbObject.set_db(server.get_or_create_db(dbName))
 
     def chmod(self, path, mode):
         self.files[path]['st_mode'] &= 0770000
@@ -42,6 +63,9 @@ class Memory(LoggingMixIn, Operations):
         return self.fd
 
     def getattr(self, path, fh=None):
+        if path is '/':
+            return dict(st_mode=(S_IFDIR | 0755), st_ctime=now,
+                               st_mtime=now, st_atime=now, st_nlink=2)
         if path not in self.files:
             raise FuseOSError(ENOENT)
 
@@ -128,9 +152,14 @@ class Memory(LoggingMixIn, Operations):
 
 
 if __name__ == '__main__':
-    if len(argv) != 2:
-        print('usage: %s <mountpoint>' % argv[0])
-        exit(1)
+    parser = argparse.ArgumentParser(description="Links a folder to the cloud-ish dvfs filesystem")
+    parser.add_argument("base", help="The folder to store local file copies in")
+# This argument needs to be last and is actually handled by the fuse module later
+    parser.add_argument("target", help="The folder to access the filesystem through")
+    parser.add_argument("-d", "--debug", action="store_true", help="Activates debug mode")
+    args = parser.parse_args()
+    if args.debug == True:
+        logging.basicConfig(filename='debug.log', level=logging.DEBUG)
 
     logging.getLogger().setLevel(logging.DEBUG)
-    fuse = FUSE(Memory(), argv[1], foreground=True)
+    fuse = FUSE(dvfs(args.base, args.debug), args.target, foreground=False)
