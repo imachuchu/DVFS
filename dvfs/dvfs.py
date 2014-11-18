@@ -63,9 +63,6 @@ class dvfs(LoggingMixIn, Operations):
         return self.fd
 
     def getattr(self, path, fh=None):
-        if path is '/':
-            return dict(st_mode=(S_IFDIR | 0755), st_ctime=now,
-                               st_mtime=now, st_atime=now, st_nlink=2)
         if path not in self.files:
             raise FuseOSError(ENOENT)
 

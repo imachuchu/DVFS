@@ -1,8 +1,11 @@
 from invoke import run, task
 
 testFiles = [
-    {'path': "test1.txt", 'content': "Test 1's content"},
-    {'path': "test2.txt", 'content': "Test 2's content"}
+    {'path': "/test1.txt", 'content': "Test 1's content"},
+    {'path': "/test2.txt", 'content': "Test 2's content"}
+]
+testFolders = [
+    {'path': "/"}
 ]
 
 @task
@@ -16,6 +19,7 @@ def addTestData():
 
     from dvfs.couchdb.dbFile import dbFile
 
+    print("Adding test data")
     server = ck.Server()
     dbName = ConfigObj('config.ini')['dbName']
     database = server.get_or_create_db(dbName)
@@ -37,7 +41,18 @@ def addTestData():
         newFile.mode = "testMode" #almost assuredly wrong
         newFile.size = os.stat(instance['path']).st_size
         newFile.save()
-    print("Adding test data")
+
+    for instance in testFolders:
+        if not os.path.exists(instance['path']):
+            os.makedirs(instance['path']}
+        newFolder = dbFolder()
+        newFolder.set_db(database)
+        newFolder.path = instance['path']
+        newFolder.createTime = datetime.utcnow()
+        newFolder.accessTime = newFolder.createTime
+        newFolder.modifyTime = newFolder.createTime
+        newFolder.mode = "testMode" #almost assuredly wrong
+        newFolder.save()
 
 @task
 def delTestData():
