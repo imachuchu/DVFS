@@ -16,6 +16,7 @@ import os
 
 from couchdb.dbObject import dbObject
 from couchdb.dbFile import dbFile
+from couchdb.dbFolder import dbFolder
 
 if not hasattr(__builtins__, 'bytes'):
     bytes = str
@@ -65,6 +66,18 @@ class dvfs(LoggingMixIn, Operations):
     def getattr(self, path, fh=None):
         if path not in self.files:
             raise FuseOSError(ENOENT)
+
+        logging.debug("in getattr")
+        logging.debug(path)
+
+        dbView = dbObject(self.dataOb)
+        info = dbView.view('dvfs/dbObject-all',
+            key=path,
+            classes={'dbFolder':dbFolder, 'dbFile': dbFile}
+        ).one()
+
+        logging.debug(info)
+
 
         return self.files[path]
 
