@@ -44,7 +44,7 @@ class dvfs(LoggingMixIn, Operations):
             logging.debug("connecting to database")
         server = ck.Server()
         self.database = server.get_or_create_db(dbName)
-        self.dataOb = dbObject.set_db(server.get_or_create_db(dbName))
+        self.dataOb = dbObject.set_db(self.database)
 
     def chmod(self, path, mode):
         self.files[path]['st_mode'] &= 0770000
@@ -77,9 +77,11 @@ class dvfs(LoggingMixIn, Operations):
         ).one()
 
         logging.debug(info)
+        logging.debug(self.files[path])
 
 
-        return self.files[path]
+        return info.getAttributes()
+        #return self.files[path]
 
     def getxattr(self, path, name, position=0):
         attrs = self.files[path].get('attrs', {})
