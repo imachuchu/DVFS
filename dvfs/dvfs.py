@@ -67,24 +67,22 @@ class dvfs(LoggingMixIn, Operations):
         if path not in self.files:
             raise FuseOSError(ENOENT)
 
-        logging.debug("in getattr")
-        logging.debug(path)
-
         dbView = dbObject(self.dataOb)
         info = dbView.view('dvfs/dbObject-all',
             key=path,
             classes={'dbFolder':dbFolder, 'dbFile': dbFile}
         ).one()
 
-        logging.debug(info)
-        logging.debug(self.files[path])
-
-
         return info.getAttributes()
-        #return self.files[path]
 
     def getxattr(self, path, name, position=0):
-        attrs = self.files[path].get('attrs', {})
+        dbView = dbObject(self.dataOb)
+        info = dbView.view('dvfs/dbObject-all',
+            key=path,
+            classes={'dbFolder':dbFolder, 'dbFile': dbFile}
+        ).one()
+
+        attrs = info.getAttributes().get('attrs', {})
 
         try:
             return attrs[name]
@@ -92,7 +90,12 @@ class dvfs(LoggingMixIn, Operations):
             return ''       # Should return ENOATTR
 
     def listxattr(self, path):
-        attrs = self.files[path].get('attrs', {})
+        dbView = dbObject(self.dataOb)
+        info = dbView.view('dvfs/dbObject-all',
+            key=path,
+            classes={'dbFolder':dbFolder, 'dbFile': dbFile}
+        ).one()
+        attrs = info.getAttributes().get('attrs', {})
         return attrs.keys()
 
     def mkdir(self, path, mode):
@@ -110,6 +113,15 @@ class dvfs(LoggingMixIn, Operations):
         return self.data[path][offset:offset + size]
 
     def readdir(self, path, fh):
+        dbView = dbObject(self.dataOb)
+        documents = dvView('dvfs/dbObject-folder',
+            key=path,
+            classes={'dbFolder': dbFolder, 'dbFile': dbFile}
+        ).all()
+        paths = []
+        for document in documents:
+            name = paths.append(dbView.get(document).path)[-1:]
+
         return ['.', '..'] + [x[1:] for x in self.files if x != '/']
 
     def readlink(self, path):
