@@ -64,14 +64,14 @@ class dvfs(LoggingMixIn, Operations):
         return self.fd
 
     def getattr(self, path, fh=None):
-        if path not in self.files:
-            raise FuseOSError(ENOENT)
-
         dbView = dbObject(self.dataOb)
-        info = dbView.view('dvfs/dbObject-all',
-            key=path,
-            classes={'dbFolder':dbFolder, 'dbFile': dbFile}
-        ).one()
+        try:
+            info = dbView.view('dvfs/dbObject-all',
+                key=path,
+                classes={'dbFolder':dbFolder, 'dbFile': dbFile}
+            ).one()
+        except:
+            raise FuseOSError(ENOENT)
 
         return info.getAttributes()
 
@@ -113,16 +113,36 @@ class dvfs(LoggingMixIn, Operations):
         return self.data[path][offset:offset + size]
 
     def readdir(self, path, fh):
+        from string import split
+        from unicodedata import normalize
         dbView = dbObject(self.dataOb)
-        documents = dvView('dvfs/dbObject-folder',
+        documents = dbView.view('dvfs/dbObject-folder',
             key=path,
             classes={'dbFolder': dbFolder, 'dbFile': dbFile}
-        ).all()
-        paths = []
-        for document in documents:
-            name = paths.append(dbView.get(document).path)[-1:]
+        ).all()[0]['value']
 
-        return ['.', '..'] + [x[1:] for x in self.files if x != '/']
+        def mapPath(documentId):
+            path = split(dbView.get(documentId).path, '/')[-1:][0]
+            if type(path) is unicode:
+                path = normalize('NFKD', path).encode('ascii', 'ignore')
+            if path == '':
+                return []
+            return [path]
+
+        def reducePaths(*args):
+            paths = []
+            for arg in args:
+                paths.extend(arg)
+            return paths
+
+        paths = reduce(
+            reducePaths,
+            map(mapPath, documents),
+            ['.', '..']
+        )
+        logging.debug("before paths output")
+        logging.debug(paths)
+        return paths
 
     def readlink(self, path):
         return self.data[path]
