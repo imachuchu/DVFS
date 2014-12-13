@@ -8,6 +8,7 @@ from errno import ENOENT
 from stat import S_IFDIR, S_IFLNK, S_IFREG
 from sys import argv, exit
 from time import time
+from datetime import datetime
 
 from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 
@@ -52,16 +53,30 @@ class dvfs(LoggingMixIn, Operations):
         return 0
 
     def chown(self, path, uid, gid):
-        self.files[path]['st_uid'] = uid
-        self.files[path]['st_gid'] = gid
+        pass
 
     def create(self, path, mode):
+        """Create the filesystem file"""
+        fullPath = self.base + path
+        file = open(fullPath, 'w+')
+        file.close()
+
+        """Add the CouchDB metadata"""
+        newFile = dbFile()
+        newFile.set_db(self.database)
+        newFile.path = path
+        newFile.createTime = newFile.accessTime = newFile.modifyTime = datetime.utcnow()
+        newFile.fileHash = sha1('')
+        newFile.st_mode = (S_IFREG | mode)
+        newFile.size = os.stat(fullPath)
+        newFile.save()
+        self.fd += 1
+        return self.fd
+        """
         self.files[path] = dict(st_mode=(S_IFREG | mode), st_nlink=1,
                                 st_size=0, st_ctime=time(), st_mtime=time(),
                                 st_atime=time())
-
-        self.fd += 1
-        return self.fd
+        """
 
     def getattr(self, path, fh=None):
         dbView = dbObject(self.dataOb)
@@ -99,9 +114,22 @@ class dvfs(LoggingMixIn, Operations):
         return attrs.keys()
 
     def mkdir(self, path, mode):
+        """Create the filesystem folder"""
+        fullPath - self.base + path
+        os.makedirs(fullPath)
+
+        """Create the CouchDB metadata"""
+        newFolder = dbFolder()
+        newFolder.set_db(self.database)
+        newFolder.path = path
+        newFolder.createTime = newFolder.accessTime = newFolder.modifyTime = datetime.utcnow()
+        newFolder.st_mode = (S_IFDIR | mode)
+        newFolder.save()
+        """
         self.files[path] = dict(st_mode=(S_IFDIR | mode), st_nlink=2,
                                 st_size=0, st_ctime=time(), st_mtime=time(),
                                 st_atime=time())
+        """
 
         self.files['/']['st_nlink'] += 1
 
