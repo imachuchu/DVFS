@@ -16,14 +16,17 @@ def addTestData():
     from datetime import datetime
     from hashlib import sha1
     from configobj import ConfigObj
+    import stat
 
     from dvfs.couchdb.dbFile import dbFile
+    from dvfs.couchdb.dbFolder import dbFolder
 
     print("Adding test data")
     server = ck.Server()
     dbName = ConfigObj('config.ini')['dbName']
     database = server.get_or_create_db(dbName)
     os.chdir("dvfs/base")
+    '''
     for instance in testFiles:
         """File system parts"""
         file = open(instance['path'], 'w+')
@@ -41,17 +44,22 @@ def addTestData():
         newFile.mode = "testMode" #almost assuredly wrong
         newFile.size = os.stat(instance['path']).st_size
         newFile.save()
+        self.files[path]['st_mode'] &= 0770000
+        self.files[path]['st_mode'] |= mode
+    '''
 
     for instance in testFolders:
+        '''
         if not os.path.exists(instance['path']):
-            os.makedirs(instance['path']}
+            os.makedirs(instance['path'])
+        '''
         newFolder = dbFolder()
         newFolder.set_db(database)
         newFolder.path = instance['path']
         newFolder.createTime = datetime.utcnow()
         newFolder.accessTime = newFolder.createTime
         newFolder.modifyTime = newFolder.createTime
-        newFolder.mode = "testMode" #almost assuredly wrong
+        newFolder.mode = (stat.S_IFDIR | 0755)
         newFolder.save()
 
 @task

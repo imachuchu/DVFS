@@ -114,8 +114,12 @@ class dvfs(LoggingMixIn, Operations):
         return attrs.keys()
 
     def mkdir(self, path, mode):
+        import re
         """Create the filesystem folder"""
-        fullPath - self.base + path
+        logging.debug("creating folder")
+        logging.dbug(path)
+
+        fullPath = self.base + path
         os.makedirs(fullPath)
 
         """Create the CouchDB metadata"""
@@ -124,14 +128,14 @@ class dvfs(LoggingMixIn, Operations):
         newFolder.path = path
         newFolder.createTime = newFolder.accessTime = newFolder.modifyTime = datetime.utcnow()
         newFolder.st_mode = (S_IFDIR | mode)
+        newFolder.st_nlink = 2
         newFolder.save()
-        """
-        self.files[path] = dict(st_mode=(S_IFDIR | mode), st_nlink=2,
-                                st_size=0, st_ctime=time(), st_mtime=time(),
-                                st_atime=time())
-        """
-
-        self.files['/']['st_nlink'] += 1
+        basePath = re.search('(.*)?/.*/', path).groups()[0] + '/'
+        dbView = dbFolder(self.dataOb)
+        baseFolder = dbView,view('dvfs/dbFolder',
+            key=basePath).one()
+        baseFolder.st_nlink += 1
+        baseFolder.save()
 
     def open(self, path, flags):
         self.fd += 1

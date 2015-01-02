@@ -7,7 +7,7 @@ class dbObject(ck.Document):
     createTime = ck.DateTimeProperty()
     accessTime = ck.DateTimeProperty()
     path = ck.StringProperty() #contains the full path of the object
-    st_mode = ck.IntegetProperty()
+    st_mode = ck.IntegerProperty()
 
     def _getBaseAttributes(self):
         """Sets up base attributes to be added to by children classes
