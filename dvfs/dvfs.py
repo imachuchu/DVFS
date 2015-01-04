@@ -48,8 +48,6 @@ class dvfs(LoggingMixIn, Operations):
         self.dataOb = dbObject.set_db(self.database)
 
     def chmod(self, path, mode):
-        self.files[path]['st_mode'] &= 0770000
-        self.files[path]['st_mode'] |= mode
         return 0
 
     def chown(self, path, uid, gid):
@@ -88,6 +86,10 @@ class dvfs(LoggingMixIn, Operations):
         except:
             raise FuseOSError(ENOENT)
 
+        #If everything goes fine, but there isn't a record stored
+        if not info:
+            raise FuseOSError(ENOENT)
+
         return info.getAttributes()
 
     def getxattr(self, path, name, position=0):
@@ -116,9 +118,6 @@ class dvfs(LoggingMixIn, Operations):
     def mkdir(self, path, mode):
         import re
         """Create the filesystem folder"""
-        logging.debug("creating folder")
-        logging.dbug(path)
-
         fullPath = self.base + path
         os.makedirs(fullPath)
 
@@ -130,9 +129,11 @@ class dvfs(LoggingMixIn, Operations):
         newFolder.st_mode = (S_IFDIR | mode)
         newFolder.st_nlink = 2
         newFolder.save()
-        basePath = re.search('(.*)?/.*/', path).groups()[0] + '/'
+        basePath = re.search('(.*)?/.*', path).groups()[0]
+        if basePath == '':
+            basePath = '/'
         dbView = dbFolder(self.dataOb)
-        baseFolder = dbView,view('dvfs/dbFolder',
+        baseFolder = dbView.view('dvfs/dbFolder-all',
             key=basePath).one()
         baseFolder.st_nlink += 1
         baseFolder.save()
