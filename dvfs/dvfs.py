@@ -173,8 +173,6 @@ class dvfs(LoggingMixIn, Operations):
             map(mapPath, documents),
             ['.', '..']
         )
-        logging.debug("before paths output")
-        logging.debug(paths)
         return paths
 
     def readlink(self, path):
@@ -192,8 +190,21 @@ class dvfs(LoggingMixIn, Operations):
         self.files[new] = self.files.pop(old)
 
     def rmdir(self, path):
-        self.files.pop(path)
-        self.files['/']['st_nlink'] -= 1
+        import re
+        """Remove the CouchDB metadata"""
+        dbView = dbFolder(self.dataOb)
+        folder = dbView.view('dvfs/dbFolder-all', key=path).one()
+        folder.delete()
+        basePath = re.search('(.*)?/.*', path).groups()[0]
+        basePath = basePath if not basePath == '' else '/'
+        baseFolder = dbView.view('dvfs/dbFolder-all', key=basePath).one()
+        baseFolder.st_nlink -= 1
+        baseFolder.save()
+
+        """Delete the base file system folder, if it exists"""
+        fullPath = self.base + path
+        if os.path.isdir(fullPath):
+            os.rmdir(fullPath)
 
     def setxattr(self, path, name, value, options, position=0):
         # Ignore options
