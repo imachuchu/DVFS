@@ -22,6 +22,16 @@ from couchdb.dbFolder import dbFolder
 if not hasattr(__builtins__, 'bytes'):
     bytes = str
 
+def _addBaseNlink(dataOb, path, amount):
+        """Adds amount to the base folder of path, works for both adding and subtracting"""
+        import re
+        dbView = dbFolder(dataOb)
+        basePath = re.search('(.*)?/.*', path).groups()[0]
+        basePath = basePath if not basePath == '' else '/'
+        baseFolder = dbView.view('dvfs/dbFolder-all', key=basePath).one()
+        baseFolder.st_nlink += amount
+        baseFolder.save()
+
 class dvfs(LoggingMixIn, Operations):
     def __init__(self, base, debug):
         self.files = {}
@@ -116,7 +126,6 @@ class dvfs(LoggingMixIn, Operations):
         return attrs.keys()
 
     def mkdir(self, path, mode):
-        import re
         """Create the filesystem folder"""
         fullPath = self.base + path
         os.makedirs(fullPath)
@@ -129,14 +138,7 @@ class dvfs(LoggingMixIn, Operations):
         newFolder.st_mode = (S_IFDIR | mode)
         newFolder.st_nlink = 2
         newFolder.save()
-        basePath = re.search('(.*)?/.*', path).groups()[0]
-        if basePath == '':
-            basePath = '/'
-        dbView = dbFolder(self.dataOb)
-        baseFolder = dbView.view('dvfs/dbFolder-all',
-            key=basePath).one()
-        baseFolder.st_nlink += 1
-        baseFolder.save()
+        _addBaseNlink(self.dataOb, path, 1)
 
     def open(self, path, flags):
         self.fd += 1
@@ -187,19 +189,30 @@ class dvfs(LoggingMixIn, Operations):
             pass        # Should return ENOATTR
 
     def rename(self, old, new):
-        self.files[new] = self.files.pop(old)
+        """Update the metadata"""
+        logging.debug("in rename")
+        dbView = dbObject(self.dataOb)
+        couchOb = dbView.view('dvfs/dbObject-all',
+            key=old,
+            classes={'dbFolder':dbFolder, 'dbFile': dbFile}
+        ).one()
+        couchOb.path = new
+        couchOb.save()
+        self._addBaseNlink(old, -1)
+        self._addBaseNlink(new, 1)
+
+        """Update the filesystem"""
+        fullOldPath = self.base + old
+        fullNewPath = self.base + new
+        if os.path.exists(fullOldPath):
+            os.rename(fullOldPath, fullNewPath)
 
     def rmdir(self, path):
-        import re
         """Remove the CouchDB metadata"""
         dbView = dbFolder(self.dataOb)
         folder = dbView.view('dvfs/dbFolder-all', key=path).one()
         folder.delete()
-        basePath = re.search('(.*)?/.*', path).groups()[0]
-        basePath = basePath if not basePath == '' else '/'
-        baseFolder = dbView.view('dvfs/dbFolder-all', key=basePath).one()
-        baseFolder.st_nlink -= 1
-        baseFolder.save()
+        _addBaseNlink(self.dataOb, path, -1)
 
         """Delete the base file system folder, if it exists"""
         fullPath = self.base + path
