@@ -31,6 +31,7 @@ def _addBaseNlink(dataOb, path, amount):
         baseFolder = dbView.view('dvfs/dbFolder-all', key=basePath).one()
         baseFolder.st_nlink += amount
         baseFolder.save()
+        return baseFolder.st_nlink
 
 class dvfs(LoggingMixIn, Operations):
     def __init__(self, base, debug):
@@ -69,22 +70,18 @@ class dvfs(LoggingMixIn, Operations):
         file = open(fullPath, 'w+')
         file.close()
 
-        """Add the CouchDB metadata"""
+        """Add the file's metadata"""
         newFile = dbFile()
         newFile.set_db(self.database)
         newFile.path = path
         newFile.createTime = newFile.accessTime = newFile.modifyTime = datetime.utcnow()
-        newFile.fileHash = sha1('')
+        newFile.fileHash = ''
         newFile.st_mode = (S_IFREG | mode)
-        newFile.size = os.stat(fullPath)
+        newFile.st_size = 0
         newFile.save()
-        self.fd += 1
-        return self.fd
-        """
-        self.files[path] = dict(st_mode=(S_IFREG | mode), st_nlink=1,
-                                st_size=0, st_ctime=time(), st_mtime=time(),
-                                st_atime=time())
-        """
+
+        """Increment the base folder's file descriptor count and return it"""
+        return _addBaseNlink(self.dataOb, path, 1)
 
     def getattr(self, path, fh=None):
         dbView = dbObject(self.dataOb)
