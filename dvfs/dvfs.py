@@ -238,10 +238,24 @@ class dvfs(LoggingMixIn, Operations):
         self.files.pop(path)
 
     def utimens(self, path, times=None):
-        now = time()
-        atime, mtime = times if times else (now, now)
-        self.files[path]['st_atime'] = atime
-        self.files[path]['st_mtime'] = mtime
+        from datetime import datetime
+        dbView = dbObject(self.dataOb)
+        try:
+            info = dbView.view('dvfs/dbObject-all',
+                key=path,
+                classes={'dbFolder':dbFolder, 'dbFile': dbFile}
+            ).one()
+        except:
+            raise FuseOSError(ENOENT)
+
+        if times:
+            logging.debug(times)
+            inTimes = map(datetime.fromtimestamp, times)
+        else:
+            now = datetime.now()
+            inTimes = (now, now)
+        info.accessTime, info.modifyTime = inTimes
+        info.save()
 
     def write(self, path, data, offset, fh):
         self.data[path] = self.data[path][:offset] + data
