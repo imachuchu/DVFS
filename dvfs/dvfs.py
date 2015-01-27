@@ -142,7 +142,10 @@ class dvfs(LoggingMixIn, Operations):
         return self.fd
 
     def read(self, path, size, offset, fh):
-        return self.data[path][offset:offset + size]
+        fullPath = self.base + path
+        with open(fullPath, 'r') as f:
+            f.seek(offset)
+            return f.read(size)
 
     def readdir(self, path, fh):
         from string import split
