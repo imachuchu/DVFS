@@ -261,8 +261,23 @@ class dvfs(LoggingMixIn, Operations):
         info.save()
 
     def write(self, path, data, offset, fh):
-        self.data[path] = self.data[path][:offset] + data
-        self.files[path]['st_size'] = len(self.data[path])
+        logging.debug("In write")
+        import os
+        fullPath = self.base + path
+        with open(fullPath, 'wb') as f:
+            f.seek(offset)
+            f.write(data)
+        size = int(os.path.get(fullPath))
+        dbView = dbFile(self.dataOb)
+        try:
+            logging.debug("in try statement")
+            logging.debug(path)
+            info = dbView.view('dvfs/dataFile-all', key=path).one()
+        except:
+            logging.debug("in except")
+            raise FuseOSError(ENOENT)
+        info.size = size
+        info.save()
         return len(data)
 
 
@@ -277,4 +292,4 @@ if __name__ == '__main__':
         logging.basicConfig(filename='debug.log', level=logging.DEBUG)
 
     logging.getLogger().setLevel(logging.DEBUG)
-    fuse = FUSE(dvfs(args.base, args.debug), args.target, foreground=False)
+    fuse = FUSE(dvfs(args.base, args.debug), args.target, foreground=True)

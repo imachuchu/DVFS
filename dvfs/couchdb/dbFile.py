@@ -16,5 +16,6 @@ class dbFile(dbObject):
         returnStat = self._getBaseAttributes()
         returnStat['st_mode'] = (stat.S_IFREG | 0755)
         returnStat['st_nlink'] = 1
+        #returnStat['st_size'] = 16 # Will need to be set to actual file size when they get written
         returnStat['st_size'] = self.st_size
         return returnStat
