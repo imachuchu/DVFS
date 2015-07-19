@@ -1,4 +1,5 @@
 argparse
+configob
 couchdbkit
 fusepy
 invoke
