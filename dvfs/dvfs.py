@@ -24,9 +24,8 @@ if not hasattr(__builtins__, 'bytes'):
 
 def _addBaseNlink(dataOb, path, amount):
         """Adds amount to the base folder of path, works for both adding and subtracting"""
-        import re
         dbView = dbFolder(dataOb)
-        basePath = re.search('(.*)?/.*', path).groups()[0]
+        basePath = os.path.dirname(path)
         basePath = basePath if not basePath == '' else '/'
         baseFolder = dbView.view('dvfs/dbFolder-all', key=basePath).one()
         baseFolder.st_nlink += amount
@@ -262,17 +261,16 @@ class dvfs(LoggingMixIn, Operations):
 
     def write(self, path, data, offset, fh):
         logging.debug("In write")
-        import os
         fullPath = self.base + path
         with open(fullPath, 'wb') as f:
             f.seek(offset)
             f.write(data)
-        size = int(os.path.get(fullPath))
+        size = int(os.path.getsize(fullPath))
         dbView = dbFile(self.dataOb)
         try:
             logging.debug("in try statement")
             logging.debug(path)
-            info = dbView.view('dvfs/dataFile-all', key=path).one()
+            info = dbView.view('dvfs/dbFile-all', key=path).one()
         except:
             logging.debug("in except")
             raise FuseOSError(ENOENT)
@@ -286,10 +284,11 @@ if __name__ == '__main__':
     parser.add_argument("base", help="The folder to store local file copies in")
 # This argument needs to be last and is actually handled by the fuse module later
     parser.add_argument("target", help="The folder to access the filesystem through")
+    parser.add_argument("-f", "--foreground", action="store_true", help="Keep the application in the foreground")
     parser.add_argument("-d", "--debug", action="store_true", help="Activates debug mode")
     args = parser.parse_args()
     if args.debug == True:
         logging.basicConfig(filename='debug.log', level=logging.DEBUG)
 
     logging.getLogger().setLevel(logging.DEBUG)
-    fuse = FUSE(dvfs(args.base, args.debug), args.target, foreground=True)
+    fuse = FUSE(dvfs(args.base, args.debug), args.target, foreground=args.foreground)
