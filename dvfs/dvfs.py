@@ -9,6 +9,7 @@ from stat import S_IFDIR, S_IFLNK, S_IFREG
 from sys import argv, exit
 from time import time
 from datetime import datetime
+from hashlib import md5
 
 from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 
@@ -58,31 +59,31 @@ class dvfs(LoggingMixIn, Operations):
         self.dataOb = dbObject.set_db(self.database)
 
     def chmod(self, path, mode):
+        if self.debug == True:
+            logging.debug("in chmod")
         return 0
 
     def chown(self, path, uid, gid):
+        if self.debug == True:
+            logging.debug("in chown")
         pass
 
     def create(self, path, mode):
         """Create the filesystem file"""
+        if self.debug == True:
+            logging.debug("in create")
         fullPath = self.base + path
         file = open(fullPath, 'w+')
         file.close()
 
-        """Add the file's metadata"""
-        newFile = dbFile()
-        newFile.set_db(self.database)
-        newFile.path = path
-        newFile.createTime = newFile.accessTime = newFile.modifyTime = datetime.utcnow()
-        newFile.fileHash = ''
-        newFile.st_mode = (S_IFREG | mode)
-        newFile.st_size = 0
-        newFile.save()
+        self._updateFileInfo(path, create=True)
 
         """Increment the base folder's file descriptor count and return it"""
         return _addBaseNlink(self.dataOb, path, 1)
 
     def getattr(self, path, fh=None):
+        if self.debug == True:
+            logging.debug("in getattr")
         dbView = dbObject(self.dataOb)
         try:
             info = dbView.view('dvfs/dbObject-all',
@@ -99,6 +100,8 @@ class dvfs(LoggingMixIn, Operations):
         return info.getAttributes()
 
     def getxattr(self, path, name, position=0):
+        if self.debug == True:
+            logging.debug("in getxattr")
         dbView = dbObject(self.dataOb)
         info = dbView.view('dvfs/dbObject-all',
             key=path,
@@ -113,6 +116,8 @@ class dvfs(LoggingMixIn, Operations):
             return ''       # Should return ENOATTR
 
     def listxattr(self, path):
+        if self.debug == True:
+            logging.debug("in listxattr")
         dbView = dbObject(self.dataOb)
         info = dbView.view('dvfs/dbObject-all',
             key=path,
@@ -123,6 +128,8 @@ class dvfs(LoggingMixIn, Operations):
 
     def mkdir(self, path, mode):
         """Create the filesystem folder"""
+        if self.debug == True:
+            logging.debug("in mkdir")
         fullPath = self.base + path
         os.makedirs(fullPath)
 
@@ -137,16 +144,23 @@ class dvfs(LoggingMixIn, Operations):
         _addBaseNlink(self.dataOb, path, 1)
 
     def open(self, path, flags):
+        if self.debug == True:
+            logging.debug("in open")
         self.fd += 1
         return self.fd
 
     def read(self, path, size, offset, fh):
+        if self.debug == True:
+            logging.debug("in read")
         fullPath = self.base + path
         with open(fullPath, 'r') as f:
             f.seek(offset)
-            return f.read(size)
+            value = f.read(size)
+        return value
 
     def readdir(self, path, fh):
+        if self.debug == True:
+            logging.debug("in readir")
         from string import split
         from unicodedata import normalize
         dbView = dbObject(self.dataOb)
@@ -177,9 +191,13 @@ class dvfs(LoggingMixIn, Operations):
         return paths
 
     def readlink(self, path):
+        if self.debug == True:
+            logging.debug("in readlink")
         return self.data[path]
 
     def removexattr(self, path, name):
+        if self.debug == True:
+            logging.debug("in removexattr")
         attrs = self.files[path].get('attrs', {})
 
         try:
@@ -189,7 +207,8 @@ class dvfs(LoggingMixIn, Operations):
 
     def rename(self, old, new):
         """Update the metadata"""
-        logging.debug("in rename")
+        if self.debug == True:
+            logging.debug("in rename")
         dbView = dbObject(self.dataOb)
         couchOb = dbView.view('dvfs/dbObject-all',
             key=old,
@@ -208,6 +227,8 @@ class dvfs(LoggingMixIn, Operations):
 
     def rmdir(self, path):
         """Remove the CouchDB metadata"""
+        if self.debug == True:
+            logging.debug("in rmdir")
         dbView = dbFolder(self.dataOb)
         folder = dbView.view('dvfs/dbFolder-all', key=path).one()
         folder.delete()
@@ -220,27 +241,40 @@ class dvfs(LoggingMixIn, Operations):
 
     def setxattr(self, path, name, value, options, position=0):
         # Ignore options
+        if self.debug == True:
+            logging.debug("in setxattr")
         attrs = self.files[path].setdefault('attrs', {})
         attrs[name] = value
 
     def statfs(self, path):
+        if self.debug == True:
+            logging.debug("in statfs")
         return dict(f_bsize=512, f_blocks=4096, f_bavail=2048)
 
     def symlink(self, target, source):
+        if self.debug == True:
+            logging.debug("in symlink")
         self.files[target] = dict(st_mode=(S_IFLNK | 0777), st_nlink=1,
                                   st_size=len(source))
 
         self.data[target] = source
 
     def truncate(self, path, length, fh=None):
-        self.data[path] = self.data[path][:length]
-        self.files[path]['st_size'] = length
+        if self.debug == True:
+            logging.debug("in truncate")
+        fullPath = self.base + path
+        with open(fullPath, 'wb+') as fb:
+            fb.truncate(length)
+        self._updateFileInfo(path)
 
     def unlink(self, path):
+        if self.debug == True:
+            logging.debug("in unlink")
         self.files.pop(path)
 
     def utimens(self, path, times=None):
-        from datetime import datetime
+        if self.debug == True:
+            logging.debug("in utimens")
         dbView = dbObject(self.dataOb)
         try:
             info = dbView.view('dvfs/dbObject-all',
@@ -251,7 +285,8 @@ class dvfs(LoggingMixIn, Operations):
             raise FuseOSError(ENOENT)
 
         if times:
-            logging.debug(times)
+            if self.debug == True:
+                logging.debug(times)
             inTimes = map(datetime.fromtimestamp, times)
         else:
             now = datetime.now()
@@ -260,23 +295,54 @@ class dvfs(LoggingMixIn, Operations):
         info.save()
 
     def write(self, path, data, offset, fh):
-        logging.debug("In write")
+        if self.debug == True:
+            logging.debug("In write")
         fullPath = self.base + path
         with open(fullPath, 'wb') as f:
             f.seek(offset)
             f.write(data)
         size = int(os.path.getsize(fullPath))
+        self._updateFileInfo(path)
         dbView = dbFile(self.dataOb)
         try:
-            logging.debug("in try statement")
-            logging.debug(path)
+            if self.debug == True:
+                logging.debug("in try statement")
+                logging.debug(path)
             info = dbView.view('dvfs/dbFile-all', key=path).one()
         except:
-            logging.debug("in except")
+            if self.debug == True:
+                logging.debug("in except")
             raise FuseOSError(ENOENT)
         info.size = size
         info.save()
         return len(data)
+
+    def _updateFileInfo(self, path, create = False, mode = False, accessTime = False, modifyTime = False):
+        """Updates the couchdb's metadata based on the actual file"""
+        fullPath = self.base + path
+        dbView = dbFile(self.dataOb)
+        info = False
+        try:
+            info = dbView.view('dvfs/dbFile-all', key=path).one()
+        except:
+            if self.debug == True:
+                logging.debug("file data not found")
+        if not info and create:
+            info = dbFile()
+            info.set_db(self.database)
+            info.path = path
+            info.createTime = info.accessTime = info.modifyTime = datetime.utcnow()
+            info.st_mode = (S_IFREG | mode)
+        if info:
+            if mode:
+                info.st_mode = mode
+            if accessTime:
+                info.accessTime = accessTime
+            if modifyTime:
+                info.modifyTime = modifyTime
+            info.st_size = os.path.getsize(fullPath)
+            info.hash = md5(fullPath).hexdigest()
+            info.save()
 
 
 if __name__ == '__main__':
@@ -289,6 +355,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.debug == True:
         logging.basicConfig(filename='debug.log', level=logging.DEBUG)
+        logging.getLogger().setLevel(logging.DEBUG)
 
-    logging.getLogger().setLevel(logging.DEBUG)
     fuse = FUSE(dvfs(args.base, args.debug), args.target, foreground=args.foreground)
