@@ -36,7 +36,6 @@ def _addBaseNlink(dataOb, path, amount):
 class dvfs(LoggingMixIn, Operations):
     def __init__(self, base, debug):
         self.files = {}
-        self.data = defaultdict(bytes)
         self.fd = 0
         now = time()
         self.files['/'] = dict(st_mode=(S_IFDIR | 0755), st_ctime=now,
@@ -191,9 +190,11 @@ class dvfs(LoggingMixIn, Operations):
         return paths
 
     def readlink(self, path):
+        """This would be nice to have implemented, but it's not necessary"""
         if self.debug == True:
             logging.debug("in readlink")
-        return self.data[path]
+        raise FuseOSError(ENOENT)
+        #return self.data[path]
 
     def removexattr(self, path, name):
         if self.debug == True:
@@ -252,12 +253,14 @@ class dvfs(LoggingMixIn, Operations):
         return dict(f_bsize=512, f_blocks=4096, f_bavail=2048)
 
     def symlink(self, target, source):
+        """This would be nice to have implemented, but not necessary"""
         if self.debug == True:
             logging.debug("in symlink")
-        self.files[target] = dict(st_mode=(S_IFLNK | 0777), st_nlink=1,
-                                  st_size=len(source))
+        raise FuseOSError(ENOENT)
+        #self.files[target] = dict(st_mode=(S_IFLNK | 0777), st_nlink=1,
+                                  #st_size=len(source))
 
-        self.data[target] = source
+        #self.data[target] = source
 
     def truncate(self, path, length, fh=None):
         if self.debug == True:
