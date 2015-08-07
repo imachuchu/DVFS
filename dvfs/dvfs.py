@@ -35,10 +35,8 @@ def _addBaseNlink(dataOb, path, amount):
 
 class dvfs(LoggingMixIn, Operations):
     def __init__(self, base, debug):
-        self.files = {}
         self.fd = 0
         now = time()
-        self.files['/'] = dict(st_mode=(S_IFDIR | 0755), st_ctime=now,
                                st_mtime=now, st_atime=now, st_nlink=2)
 
         """dvfs stuff"""
@@ -199,12 +197,13 @@ class dvfs(LoggingMixIn, Operations):
     def removexattr(self, path, name):
         if self.debug == True:
             logging.debug("in removexattr")
-        attrs = self.files[path].get('attrs', {})
-
-        try:
-            del attrs[name]
-        except KeyError:
-            pass        # Should return ENOATTR
+        dbView = dbObject(self.dataOb)
+        couchOb = dbView.view('dvfs/dbObject-all',
+            key=path,
+            classes={'dbFolder':dbFolder, 'dbFile': dbFile}
+        ).one()
+        del couchOb[name]
+        couchOb.save()
 
     def rename(self, old, new):
         """Update the metadata"""
@@ -244,8 +243,13 @@ class dvfs(LoggingMixIn, Operations):
         # Ignore options
         if self.debug == True:
             logging.debug("in setxattr")
-        attrs = self.files[path].setdefault('attrs', {})
-        attrs[name] = value
+        dbView = dbObject(self.dataOb)
+        couchOb = dbView.view('dvfs/dbObject-all',
+            key=path,
+            classes={'dbFolder':dbFolder, 'dbFile': dbFile}
+        ).one()
+        couchOb[name] = value
+        couchOb.save()
 
     def statfs(self, path):
         if self.debug == True:
@@ -257,10 +261,6 @@ class dvfs(LoggingMixIn, Operations):
         if self.debug == True:
             logging.debug("in symlink")
         raise FuseOSError(ENOENT)
-        #self.files[target] = dict(st_mode=(S_IFLNK | 0777), st_nlink=1,
-                                  #st_size=len(source))
-
-        #self.data[target] = source
 
     def truncate(self, path, length, fh=None):
         if self.debug == True:
@@ -273,7 +273,12 @@ class dvfs(LoggingMixIn, Operations):
     def unlink(self, path):
         if self.debug == True:
             logging.debug("in unlink")
-        self.files.pop(path)
+        fullPath = self.base + path
+        os.remove(fullPath)
+        dbView = dbFile(self.dataOb)
+        info = dbView.view('dvfs/dbFile-all', key=path).one()
+        info.delete()
+        self._addBaseNlink(self.dataOb, path, -1)
 
     def utimens(self, path, times=None):
         if self.debug == True:
@@ -331,7 +336,7 @@ class dvfs(LoggingMixIn, Operations):
             if self.debug == True:
                 logging.debug("file data not found")
         if not info and create:
-            info = dbFile()
+            info = dbFile(self.dataOb)
             info.set_db(self.database)
             info.path = path
             info.createTime = info.accessTime = info.modifyTime = datetime.utcnow()
