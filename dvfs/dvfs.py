@@ -352,6 +352,14 @@ class dvfs(LoggingMixIn, Operations):
             info.hash = md5(fullPath).hexdigest()
             info.save()
 
+    def _loadFolder(self, path):
+        """Loads all files inside a folder, inserting them into the database if they aren't already there or removing them if they shouldn't be"""
+        fullPath = basePath + path
+        files = []
+        for root, dirs, files in os.walk(fullPath):
+            for fileName in files:
+                files.append(root + '/' + fileName
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Links a folder to the cloud-ish dvfs filesystem")
