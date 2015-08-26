@@ -2,6 +2,7 @@
 
 import logging
 import argparse #For easy parsing of the command line arguments
+from multiprocessing import Process
 
 from collections import defaultdict
 from errno import ENOENT
@@ -20,6 +21,8 @@ from couchdb.dbObject import dbObject
 from couchdb.dbFile import dbFile
 from couchdb.dbFolder import dbFolder
 
+import pudb
+
 if not hasattr(__builtins__, 'bytes'):
     bytes = str
 
@@ -37,7 +40,6 @@ class dvfs(LoggingMixIn, Operations):
     def __init__(self, base, debug):
         self.fd = 0
         now = time()
-                               st_mtime=now, st_atime=now, st_nlink=2)
 
         """dvfs stuff"""
         self.debug = debug
@@ -358,8 +360,21 @@ class dvfs(LoggingMixIn, Operations):
         files = []
         for root, dirs, files in os.walk(fullPath):
             for fileName in files:
-                files.append(root + '/' + fileName
+                files.append(root + '/' + fileName)
+        pudb.set_trace()
 
+def createProcesses(baseFolder, databaseName):
+    """Creates the processes needed for the other components"""
+    from dirWatcher import startObserver
+
+    processes = {
+        'dirWatcher':{"function":startObserver} #Watches for changes to the base folder
+    }
+    for name, process in processes.items():
+        p = Process(target=process['function'], args=(baseFolder, databaseName))
+        p.start()
+        process['handle'] = p
+    return processes
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Links a folder to the cloud-ish dvfs filesystem")
@@ -369,8 +384,17 @@ if __name__ == '__main__':
     parser.add_argument("-f", "--foreground", action="store_true", help="Keep the application in the foreground")
     parser.add_argument("-d", "--debug", action="store_true", help="Activates debug mode")
     args = parser.parse_args()
+
+    processes = createProcesses(args.base, 'dvfs')
+
+    try:
+        while True:
+            time.sleep(1)
+    except:
+        pass
+    '''
     if args.debug == True:
         logging.basicConfig(filename='debug.log', level=logging.DEBUG)
         logging.getLogger().setLevel(logging.DEBUG)
-
     fuse = FUSE(dvfs(args.base, args.debug), args.target, foreground=args.foreground)
+    '''
