@@ -3,3 +3,4 @@ configobj
 couchdbkit
 fusepy
 invoke
+watchdog
