@@ -1,4 +1,5 @@
 import couchdbkit as ck
+import os
 from time import mktime
 from stat import S_IFDIR, S_IFLNK, S_IFREG
 from datetime import datetime
@@ -48,6 +49,29 @@ class dbFolder(dbObject):
             child.delete()
         super(dbFolder, self).delete()
 
+    def createNew(self, dbName, path, basePath=False, mode=False, time=False):
+        """Creates a new folder in the named database"""
+        server = ck.Server()
+        database = server.get_or_create_db(dbName)
+        self.set_db(database)
+        if not time:
+            time = datetime.utcnow()
+        self.createTime = self.accessTime = self.modifyTime = time
+        if not mode:
+            mode = S_IFDIR
+        self.st_mode = mode
+        self.st_nlink = 2
+        self.path = path
+        self.save()
+
+        dbView = dbFolder()
+        dbView.set_db(database)
+        folPath = os.path.split(path)
+        baseFolder = dbView.view('dvfs/dbFolder-all', key=folPath[0]).one()
+        """There should always be a base folder, if not then there's a problem"""
+        baseFolder.st_nlink = baseFolder.st_nlink + 1
+        baseFolder.save()
+
 
 class dbFile(dbObject):
     """The metadata of a stored file"""
@@ -67,15 +91,28 @@ class dbFile(dbObject):
         returnStat['st_size'] = self.st_size
         return returnStat
 
-    def createNew(self, databaseName, path, mode=S_IFREG, time=False):
+    def createNew(self, dbName, path, basePath=False, mode=False, time=False):
         """Creates the file in the database"""
-        self.set_db(databaseName)
+        server = ck.Server()
+        database = server.get_or_create_db(dbName)
+        self.set_db(database)
+        self.path = path
         if not time:
             time = datetime.utcnow()
         self.createTime = self.accessTime = self.modifyTime = time
+        if not mode:
+            mode = S_IFREG
         self.st_mode = mode
-        self.path = "/" + "/".join(path.split('/')[1:])
+        if basePath:
+            self.hash = md5(basePath).hexdigest()
+            self.st_size = os.path.getsize(basePath)
         self.save()
 
-        baseFolder = dbObject()
-        dbObject.set_db(databaseName)
+        dbView = dbFolder()
+        dbView.set_db(database)
+        folPath = os.path.split(path)
+        baseFolder = dbView.view('dvfs/dbFolder-all', key=folPath[0]).one()
+        """There should always be a base folder, if not then there's a problem"""
+        baseFolder.st_nlink = baseFolder.st_nlink + 1
+        baseFolder.save()
+

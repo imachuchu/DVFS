@@ -2,12 +2,12 @@
 
 import sys
 import time
+from datetime import datetime
 from hashlib import md5
+from stat import S_IFDIR, S_IFLNK, S_IFREG
 
 import couchdbkit as ck
-from couchdb.dbObject import dbObject
-from couchdb.dbFile import dbFile
-from couchdb.dbFolder import dbFolder
+from dbObjects import dbObject, dbFile, dbFolder
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -31,23 +31,16 @@ def startObserver(path='.', database='dvfs'):
 class dirWatcher(FileSystemEventHandler):
 	def __init__(self, dbName = False):
 		if dbName:
-			server = ck.Server()
-			self.database = server.get_or_create_db(dbName)
-			self.dataOb = dbObject.set_db(self.database)
+			self.dbName = dbName
 		return super(dirWatcher, self).__init__()
 
 	def on_created(self, event):
 		path = "/" + "/".join(event.src_path.split('/')[1:])
 		if event.is_directory:
 			info = dbFolder()
-			info.st_nLink = 2
 		else:
 			info = dbFile()
-		info.set_db(self.database)
-		info.path = path
-		info.createTime = info.accessTime = info.modifyTime = datetime.utcnow()
-		info.st_mode = (S_IFREG)
-		info.save()
+		info.createNew(self.dbName, path, event.src_path)
 	def on_deleted(self, event):
 		path = "/" + "/".join(event.src_path.split('/')[1:])
 		dbView = dbObject(self.dataOb)

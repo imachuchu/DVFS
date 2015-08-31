@@ -17,9 +17,7 @@ from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 import couchdbkit as ck
 import os
 
-from couchdb.dbObject import dbObject
-from couchdb.dbFile import dbFile
-from couchdb.dbFolder import dbFolder
+from dbObjects import dbObject, dbFile, dbFolder
 
 import pudb
 
