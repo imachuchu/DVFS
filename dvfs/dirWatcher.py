@@ -31,6 +31,9 @@ def startObserver(path='.', database='dvfs'):
 class dirWatcher(FileSystemEventHandler):
 	def __init__(self, dbName = False):
 		if dbName:
+			server = ck.Server()
+			self.database = server.get_or_create_db(dbName)
+			self.dataOb = dbObject.set_db(self.database)
 			self.dbName = dbName
 		return super(dirWatcher, self).__init__()
 
@@ -48,8 +51,8 @@ class dirWatcher(FileSystemEventHandler):
 			key=path,
 			classes={'dbFolder':dbFolder, 'dbFile': dbFile}
 		).one()
-		"""Will need more here to recursively delete files/folder"""
-		print("On deleted")
+		if info:
+			info.delete()
 	def on_modified(self, event):
 		path = "/" + "/".join(event.src_path.split('/')[1:])
 		dbView = dbObject(self.dataOb)

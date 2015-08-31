@@ -40,9 +40,10 @@ class dbFolder(dbObject):
 
     def delete(self):
         """Since there might be other files and folders underneath this folder we have to handle deleting them before ourselves"""
-        dbView = dbObject(self.dataOb)
+        dbView = dbObject
+        dbView.set_db(self.get_db())
         children = dbView.view('dvfs/dbObject-folder',
-            key=old,
+            key=self.path,
             classes={'dbFolder':dbFolder, 'dbFile': dbFile}
         )
         for child in children:
