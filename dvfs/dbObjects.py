@@ -40,7 +40,7 @@ class dbFolder(dbObject):
 
     def delete(self):
         """Since there might be other files and folders underneath this folder we have to handle deleting them before ourselves"""
-        dbView = dbObject
+        dbView = dbObject()
         dbView.set_db(self.get_db())
         children = dbView.view('dvfs/dbObject-folder',
             key=self.path,
@@ -48,6 +48,10 @@ class dbFolder(dbObject):
         )
         for child in children:
             child.delete()
+        basePath = os.path.split(path)[0]
+        baseFolder = dbView.view('dvfs/dbObject-all',
+            key=basePath).one()
+        baseFolder.st_nlink -= 1
         super(dbFolder, self).delete()
 
     def createNew(self, dbName, path, basePath=False, mode=False, time=False):
@@ -70,7 +74,7 @@ class dbFolder(dbObject):
         folPath = os.path.split(path)
         baseFolder = dbView.view('dvfs/dbFolder-all', key=folPath[0]).one()
         """There should always be a base folder, if not then there's a problem"""
-        baseFolder.st_nlink = baseFolder.st_nlink + 1
+        baseFolder.st_nlink += 1
         baseFolder.save()
 
 
@@ -114,6 +118,15 @@ class dbFile(dbObject):
         folPath = os.path.split(path)
         baseFolder = dbView.view('dvfs/dbFolder-all', key=folPath[0]).one()
         """There should always be a base folder, if not then there's a problem"""
-        baseFolder.st_nlink = baseFolder.st_nlink + 1
+        baseFolder.st_nlink += 1
         baseFolder.save()
 
+    def delete(self):
+        """Deletes the file and decrement's it's base folders link list"""
+        dbView = dbFolder()
+        dbView.set_db(self.get_db)
+        basePath = os.path.split(path)[0]
+        baseFolder = dbView.view('dvfs/dbObject-all',
+            key=basePath).one()
+        baseFolder.st_nlink -= 1
+        super(dbFile, self).delete()
