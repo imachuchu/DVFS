@@ -48,10 +48,13 @@ class dbFolder(dbObject):
         )
         for child in children:
             child.delete()
-        basePath = os.path.split(path)[0]
+        basePath = os.path.split(self.path)[0]
         baseFolder = dbView.view('dvfs/dbObject-all',
-            key=basePath).one()
+            key=basePath,
+            classes={'dbFolder':dbFolder}
+        ).one()
         baseFolder.st_nlink -= 1
+        baseFolder.save()
         super(dbFolder, self).delete()
 
     def createNew(self, dbName, path, basePath=False, mode=False, time=False):
