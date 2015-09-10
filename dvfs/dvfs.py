@@ -73,7 +73,9 @@ class dvfs(LoggingMixIn, Operations):
         file = open(fullPath, 'w+')
         file.close()
 
-        self._updateFileInfo(path, create=True)
+        newFile = dbFile(self.dbObject)
+        fullPath = self.base + path
+        newFile.createNew(self.dbName, path, basePath = fullPath)
 
         """Increment the base folder's file descriptor count and return it"""
         return _addBaseNlink(self.dataOb, path, 1)
@@ -268,7 +270,11 @@ class dvfs(LoggingMixIn, Operations):
         fullPath = self.base + path
         with open(fullPath, 'wb+') as fb:
             fb.truncate(length)
-        self._updateFileInfo(path)
+
+        dbView = dbFile(self.dataOb)
+        info = dbView.view('dvfs/dbFile-all', key=path).one()
+        info.updateInfo(fullPath)
+
 
     def unlink(self, path):
         if self.debug == True:
@@ -310,19 +316,17 @@ class dvfs(LoggingMixIn, Operations):
             f.seek(offset)
             f.write(data)
         size = int(os.path.getsize(fullPath))
-        self._updateFileInfo(path)
         dbView = dbFile(self.dataOb)
         try:
             if self.debug == True:
                 logging.debug("in try statement")
                 logging.debug(path)
             info = dbView.view('dvfs/dbFile-all', key=path).one()
+            info.updateInfo(fullPath)
         except:
             if self.debug == True:
                 logging.debug("in except")
             raise FuseOSError(ENOENT)
-        info.size = size
-        info.save()
         return len(data)
 
     def _updateFileInfo(self, path, create = False, mode = False, accessTime = False, modifyTime = False):
@@ -385,14 +389,7 @@ if __name__ == '__main__':
 
     processes = createProcesses(args.base, 'dvfs')
 
-    try:
-        while True:
-            time.sleep(1)
-    except:
-        pass
-    '''
     if args.debug == True:
         logging.basicConfig(filename='debug.log', level=logging.DEBUG)
         logging.getLogger().setLevel(logging.DEBUG)
     fuse = FUSE(dvfs(args.base, args.debug), args.target, foreground=args.foreground)
-    '''

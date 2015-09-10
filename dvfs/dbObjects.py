@@ -133,3 +133,8 @@ class dbFile(dbObject):
             key=basePath).one()
         baseFolder.st_nlink -= 1
         super(dbFile, self).delete()
+
+    def updateInfo(basePath):
+        self.st_size = os.path.getsize(basePath)
+        self.hash = md5(basePath).hexdigest()
+        self.save()
