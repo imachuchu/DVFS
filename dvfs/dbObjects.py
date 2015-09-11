@@ -1,7 +1,11 @@
+"""
+    dbObjects: An abstraction layer representing filesystem objects inside a CouchDb instance
+    Ben Hartman, 9/10/2015
+"""
 import couchdbkit as ck
 import os
 from time import mktime
-from stat import S_IFDIR, S_IFLNK, S_IFREG
+from stat import S_IFDIR, S_IFREG
 from datetime import datetime
 from hashlib import md5
 
@@ -57,7 +61,7 @@ class dbFolder(dbObject):
         baseFolder.save()
         super(dbFolder, self).delete()
 
-    def createNew(self, dbName, path, basePath=False, mode=False, time=False):
+    def createNew(self, dbName, path, mode=False, time=False):
         """Creates a new folder in the named database"""
         server = ck.Server()
         database = server.get_or_create_db(dbName)
@@ -95,7 +99,6 @@ class dbFile(dbObject):
         returnStat = self._getBaseAttributes()
         returnStat['st_mode'] = (S_IFREG | 0755)
         returnStat['st_nlink'] = 1
-        #returnStat['st_size'] = 16 # Will need to be set to actual file size when they get written
         returnStat['st_size'] = self.st_size
         return returnStat
 
@@ -112,7 +115,7 @@ class dbFile(dbObject):
             mode = S_IFREG
         self.st_mode = mode
         if basePath:
-            self.hash = md5(basePath).hexdigest()
+            self.fileHash = md5(basePath).hexdigest()
             self.st_size = os.path.getsize(basePath)
         self.save()
 
@@ -128,13 +131,15 @@ class dbFile(dbObject):
         """Deletes the file and decrement's it's base folders link list"""
         dbView = dbFolder()
         dbView.set_db(self.get_db)
-        basePath = os.path.split(path)[0]
+        basePath = os.path.split(self.path)[0]
         baseFolder = dbView.view('dvfs/dbObject-all',
-            key=basePath).one()
+            key=basePath
+        ).one()
         baseFolder.st_nlink -= 1
         super(dbFile, self).delete()
 
-    def updateInfo(basePath):
+    def updateInfo(self, basePath):
+        """Updates the stored information based on the actual base file's information"""
         self.st_size = os.path.getsize(basePath)
-        self.hash = md5(basePath).hexdigest()
+        self.fileHash = md5(basePath).hexdigest()
         self.save()
